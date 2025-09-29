@@ -3,9 +3,13 @@ from __future__ import annotations
 import argparse
 import csv
 import sys
+import tempfile
 from collections import Counter
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, TextIO
+import zipfile
+
+from xml.sax.saxutils import escape
 
 from glycoenum import __version__
 from glycoenum.formula import add_modifier, dehydrate, format_hill, parse_formula, scale_counts
@@ -31,6 +35,7 @@ UNIT_FORMULAS = {
 }
 TERMINAL_MODIFIER = "C20H18N4O"
 ADDUCT_CHOICES = ["neutral", "[M+H]+", "[M+Na]+"]
+XLSX_FILENAME = "glycoenum_output.xlsx"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -180,6 +185,8 @@ def main(argv: Iterable[str] | None = None) -> None:
         print(str(exc), file=sys.stderr)
         sys.exit(1)
 
+    mass_text = f"{theoretical_mass:.{decimals}f}"
+
     permutations = {name: count for name, count in counts_map.items() if count > 0}
     total_permutations = permutation_count(permutations)
 
@@ -192,8 +199,7 @@ def main(argv: Iterable[str] | None = None) -> None:
             permutations,
             base_formula,
             final_formula,
-            theoretical_mass,
-            decimals,
+            mass_text,
             cap,
             destination,
         )
@@ -209,6 +215,17 @@ def main(argv: Iterable[str] | None = None) -> None:
 
     if destination is None:
         sys.stdout.flush()
+
+    _maybe_generate_xlsx(
+        permutations,
+        base_formula,
+        final_formula,
+        mass_text,
+        rows_written,
+        total_permutations,
+    )
+
+    if destination is None:
         _pause_before_exit()
 
 
@@ -342,8 +359,7 @@ def _emit_output(
     permutations: dict[str, int],
     base_formula: str,
     final_formula: str,
-    theoretical_mass: float,
-    decimals: int,
+    mass_text: str,
     cap: int,
     destination: Path | None,
 ) -> int:
@@ -355,11 +371,25 @@ def _emit_output(
         with destination.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.writer(handle, lineterminator="\n")
             writer.writerow(header)
-            rows = _write_rows(writer, permutations, base_formula, final_formula, theoretical_mass, decimals, cap)
+            rows = _write_rows(
+                writer,
+                permutations,
+                base_formula,
+                final_formula,
+                mass_text,
+                cap,
+            )
     else:
         writer = csv.writer(sys.stdout, lineterminator="\n")
         writer.writerow(header)
-        rows = _write_rows(writer, permutations, base_formula, final_formula, theoretical_mass, decimals, cap)
+        rows = _write_rows(
+            writer,
+            permutations,
+            base_formula,
+            final_formula,
+            mass_text,
+            cap,
+        )
     return rows
 
 
@@ -368,11 +398,9 @@ def _write_rows(
     permutations: dict[str, int],
     base_formula: str,
     final_formula: str,
-    theoretical_mass: float,
-    decimals: int,
+    mass_text: str,
     cap: int,
 ) -> int:
-    formatted_mass = f"{theoretical_mass:.{decimals}f}"
     emitted = 0
     if cap <= 0:
         return emitted
@@ -382,12 +410,167 @@ def _write_rows(
                 "-".join(sequence),
                 base_formula,
                 final_formula,
-                formatted_mass,
+                mass_text,
             ]
         )
         if emitted >= cap:
             break
     return emitted
+
+
+def _maybe_generate_xlsx(
+    permutations: dict[str, int],
+    base_formula: str,
+    final_formula: str,
+    mass_text: str,
+    rows_written: int,
+    total_permutations: int,
+) -> None:
+    if rows_written <= 0:
+        return
+    if not sys.stdin.isatty():
+        return
+    try:
+        answer = input("是否在当前目录生成 XLSX 表格？(Y/N): ").strip().lower()
+    except EOFError:
+        return
+    if answer not in {"y", "yes"}:
+        return
+
+    target = Path.cwd() / XLSX_FILENAME
+    try:
+        exported = _write_xlsx(
+            permutations,
+            base_formula,
+            final_formula,
+            mass_text,
+            rows_written,
+            target,
+        )
+    except (OSError, ValueError) as exc:
+        print(f"写入 XLSX 失败: {exc}", file=sys.stderr)
+        return
+
+    note = ""
+    if total_permutations > rows_written:
+        note = f"（已截断，仅导出前 {rows_written} 行）"
+    print(
+        f"[info] 已在当前目录生成 {target.name}，共 {exported} 行{note}",
+        file=sys.stderr,
+    )
+
+
+CONTENT_TYPES_XML = """<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">
+  <Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>
+  <Default Extension=\"xml\" ContentType=\"application/xml\"/>
+  <Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>
+  <Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>
+  <Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/>
+</Types>
+"""
+
+ROOT_RELS_XML = """<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">
+  <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/>
+</Relationships>
+"""
+
+WORKBOOK_XML = """<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">
+  <sheets>
+    <sheet name=\"glycoenum\" sheetId=\"1\" r:id=\"rId1\"/>
+  </sheets>
+</workbook>
+"""
+
+WORKBOOK_RELS_XML = """<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">
+  <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/>
+  <Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>
+</Relationships>
+"""
+
+STYLES_XML = """<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">
+  <fonts count=\"1\"><font><sz val=\"11\"/><name val=\"Calibri\"/></font></fonts>
+  <fills count=\"1\"><fill><patternFill patternType=\"none\"/></fill></fills>
+  <borders count=\"1\"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+  <cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>
+  <cellXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellXfs>
+  <cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>
+</styleSheet>
+"""
+
+
+def _write_xlsx(
+    permutations: dict[str, int],
+    base_formula: str,
+    final_formula: str,
+    mass_text: str,
+    rows_limit: int,
+    path: Path,
+) -> int:
+    rows_limit = max(0, rows_limit)
+    header = ["compound", "分子式", "最终分子式", "理论"]
+    sheet_path: Path | None = None
+
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", newline="", delete=False) as sheet_tmp:
+        sheet_path = Path(sheet_tmp.name)
+        sheet_tmp.write("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n")
+        sheet_tmp.write(
+            "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" "
+            "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">\n"
+        )
+        sheet_tmp.write("  <sheetData>\n")
+        _write_sheet_row(sheet_tmp, 1, header)
+
+        data_rows = 0
+        row_index = 2
+        if rows_limit > 0:
+            for sequence in iter_unique_permutations(permutations):
+                if data_rows >= rows_limit:
+                    break
+                values = ["-".join(sequence), base_formula, final_formula, mass_text]
+                _write_sheet_row(sheet_tmp, row_index, values)
+                data_rows += 1
+                row_index += 1
+
+        sheet_tmp.write("  </sheetData>\n")
+        sheet_tmp.write("</worksheet>\n")
+
+    try:
+        with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as workbook:
+            workbook.writestr("[Content_Types].xml", CONTENT_TYPES_XML)
+            workbook.writestr("_rels/.rels", ROOT_RELS_XML)
+            workbook.writestr("xl/workbook.xml", WORKBOOK_XML)
+            workbook.writestr("xl/_rels/workbook.xml.rels", WORKBOOK_RELS_XML)
+            workbook.writestr("xl/styles.xml", STYLES_XML)
+            workbook.write(sheet_path, "xl/worksheets/sheet1.xml")
+    finally:
+        if sheet_path is not None:
+            sheet_path.unlink(missing_ok=True)
+
+    return data_rows
+
+
+def _write_sheet_row(stream: TextIO, row_index: int, values: Iterable[str]) -> None:
+    stream.write(f"    <row r=\"{row_index}\">")
+    for column_index, value in enumerate(values, start=1):
+        cell_ref = f"{_column_letter(column_index)}{row_index}"
+        text = escape(str(value))
+        stream.write(
+            f"<c r=\"{cell_ref}\" t=\"inlineStr\"><is><t>{text}</t></is></c>"
+        )
+    stream.write("</row>\n")
+
+
+def _column_letter(index: int) -> str:
+    result = ""
+    while index > 0:
+        index, remainder = divmod(index - 1, 26)
+        result = chr(65 + remainder) + result
+    return result
 
 
 if __name__ == "__main__":  # pragma: no cover

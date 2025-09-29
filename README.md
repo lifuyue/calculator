@@ -22,6 +22,8 @@ python -m glycoenum.cli --hex 5 --deoxyhex 0 --pent 1 --hexn 0 --ua 0 --hexnac 0
 python -m glycoenum.cli 5 0 1 0 0 0 --adduct "[M+H]+"
 ```
 
+计算完成后，终端会询问是否在当前目录生成 `glycoenum_output.xlsx`；回答 `Y` 即可得到与 CSV 同列的表格。
+
 所有行都会采用表头 `compound,分子式,最终分子式,理论`，并在 `--csv` 缺省时输出到标准输出。`--max-rows` 可用于提前截断（超过时在 stderr 打印 `[warn] rows truncated at …`）。
 
 ## 质量模型与修饰

@@ -1,30 +1,31 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- **`glycoenum/`** holds the Python package. Core modules: `types.py`, `formula_parser.py`, `mass_calc.py`, `enumerator.py`, `config.py`, and the Typer CLI in `cli.py`. Default unit data lives in `glycoenum/defaults/units.toml`.
-- **`docs/`** contains architecture notes; add design RFCs or API drafts here. Keep any new contributor guides alongside `architecture.md`.
-- Tests should mirror module layout under a future `tests/` package (e.g., `tests/test_formula_parser.py`). Avoid mixing fixtures with production code.
+- `glycoenum/` contains the CLI package: `cli.py` orchestrates parsing/output, `formula.py` handles composition math, `mass.py` covers mass models and adducts, `permute.py` streams multiset permutations, and `__main__.py` exposes `python -m glycoenum`.
+- Root-level `pyproject.toml` defines the entry point and build metadata; `build.bat` wraps the PyInstaller flow. Place any future docs under `docs/` and Python tests beside the package in `tests/` (e.g., `tests/test_formula.py`).
+- Runtime assets are minimal—no user-writable data lives in the package. Keep optional examples or CSV fixtures in `docs/` to avoid shipping them with the library.
 
 ## Build, Test, and Development Commands
-- `python3 -m venv .venv && source .venv/bin/activate` — standard virtualenv bootstrap.
-- `pip install -e .[dev]` — install the package in editable mode once a `dev` extra is defined.
-- `python -m glycoenum.cli run --help` — quick smoke-test of CLI wiring.
-- `python -m compileall glycoenum` — lightweight syntax check already used in CI scaffolding; run before commits when you touch multiple modules.
+- `python3 -m venv .venv && source .venv/bin/activate` – standard virtualenv bootstrap.
+- `pip install -e .` – install in editable mode for local iteration.
+- `python3 -m glycoenum.cli --help` – smoke-check CLI binding and option help.
+- `python3 -m compileall glycoenum` – quick syntax verification before commits.
+- Packaging: `pyinstaller --noconfirm --onefile glycoenum/cli.py -n glycoenum` (mirrors the documented release command).
 
 ## Coding Style & Naming Conventions
-- Target Python 3.10+ with type hints. Prefer `dataclasses` for structured data and keep module-level constants UPPER_SNAKE.
-- Formatting: adopt Black (88 cols) and Ruff for linting once configured. Use single quotes by default; reserve double quotes for docstrings.
-- Filenames follow snake_case; Typer commands remain lowercase verbs (e.g., `run`).
+- Target Python 3.10+, prefer type hints on public functions. Constants remain UPPER_SNAKE; module names use snake_case.
+- Follow Black (88 cols) and Ruff defaults once configured; align string quoting with double quotes for user-facing text and docstrings.
+- CLI flags stay lowercase with hyphen separators (`--mass-model`, `--max-rows`). Function names should be verbs (`format_hill`, `iter_unique_permutations`).
 
 ## Testing Guidelines
-- Use `pytest` with `pytest-cov` for coverage. Name test files `test_*.py` and focus on parsing edge cases, mass computations, and CLI integration.
-- Add representative fixtures for common unit sets (default six units, custom modifier) to keep tests readable.
-- Aim for >90% coverage in `glycoenum/formula_parser.py` and `glycoenum/mass_calc.py`, as they feed downstream calculations.
+- Adopt `pytest` for unit and CLI integration tests. Mirror module paths: `tests/test_permutes.py`, `tests/test_cli.py`, etc.
+- Cover parsing edge cases (mixed case symbols, invalid tokens), mass override errors, adduct math, and truncation warnings. Include at least one golden CSV snapshot test using temporary files.
+- Aim for ≥90% line coverage in `formula.py` and `mass.py`; document unavoidable gaps in test docstrings.
 
 ## Commit & Pull Request Guidelines
-- Craft imperative commit subjects scoped to the domain: `Implement formula dehydration guard` or `Wire Typer CLI output formatter`.
-- Pull requests should outline intent, list verification steps (`python -m compileall glycoenum`, future `pytest` runs), and mention config or data changes. Attach CLI output snippets or CSV samples when behavior changes.
+- Commits use imperative subjects scoped to the domain (`Add multiset stream generator`, `Refine mass override errors`). Group related refactors into a single logical change.
+- PRs must describe intent, list verification steps (e.g., `python3 -m compileall glycoenum`, planned `pytest` suite), and attach relevant CLI output snippets. Note changes to packaging scripts or default constants so downstream consumers can react.
 
-## Security & Configuration Tips
-- Never commit real `.env` files. When sharing CLI examples, redact customer data.
-- Document new config keys in `docs/` and ensure defaults live in `glycoenum/defaults/` so the CLI stays reproducible.
+## Security & Packaging Notes
+- Do not commit generated executables or virtualenv folders. Example outputs should omit PII and rely on synthetic compositions.
+- When adjusting mass tables or modifiers, update the README and mention PyInstaller rebuild steps so release automation stays predictable.
