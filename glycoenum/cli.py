@@ -7,10 +7,10 @@ from collections import Counter
 from pathlib import Path
 from typing import Iterable
 
-from . import __version__
-from .formula import add_modifier, dehydrate, format_hill, parse_formula, scale_counts
-from .mass import apply_adduct, build_mass_table, calculate_mass
-from .permute import iter_unique_permutations, permutation_count
+from glycoenum import __version__
+from glycoenum.formula import add_modifier, dehydrate, format_hill, parse_formula, scale_counts
+from glycoenum.mass import apply_adduct, build_mass_table, calculate_mass
+from glycoenum.permute import iter_unique_permutations, permutation_count
 
 UNIT_ORDER = ["Hex", "deoxyhex", "pent", "HexN", "UA", "HexNAc"]
 UNIT_OPTION_DESTS = {
@@ -127,6 +127,17 @@ def main(argv: Iterable[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    if not _has_any_counts(args):
+        if sys.stdin.isatty():
+            print('请输入六个非负整数，对应 Hex, deoxyhex, pent, HexN, UA, HexNAc。', file=sys.stdout)
+            print('使用空格分隔多个数值后按 Enter 确认（例如：3 1 0 2 0 0）。按 Ctrl+C 退出。', file=sys.stdout)
+            print('', file=sys.stdout)
+            args.counts = _prompt_positional_counts()
+        else:
+            parser.print_help()
+            print('\nProvide counts using positional arguments (Hex deoxyhex pent HexN UA HexNAc) or named options such as --hex.', file=sys.stdout)
+            return
+
     try:
         counts_map = _resolve_counts(args, parser)
         overrides = _parse_mass_overrides(args.masses)
@@ -196,9 +207,52 @@ def main(argv: Iterable[str] | None = None) -> None:
         )
         print(message, file=sys.stderr)
 
-    if destination is None and rows_written == 0:
-        # Ensure at least header is printed to stdout
+    if destination is None:
         sys.stdout.flush()
+        _pause_before_exit()
+
+
+def _has_any_counts(args: argparse.Namespace) -> bool:
+    if args.counts:
+        return True
+    for dest in UNIT_OPTION_DESTS.values():
+        if getattr(args, dest) is not None:
+            return True
+    return False
+
+
+def _pause_before_exit() -> None:
+    if not getattr(sys, 'frozen', False):
+        return
+    try:
+        input('按 Enter 键退出...')
+    except EOFError:
+        pass
+
+
+def _prompt_positional_counts() -> list[int]:
+    while True:
+        try:
+            raw = input('请输入六个非负整数，以空格分隔（Hex deoxyhex pent HexN UA HexNAc）：').strip()
+        except EOFError:
+            raise SystemExit(1)
+        if not raw:
+            print('输入不能为空，请重新输入。', file=sys.stdout)
+            continue
+        parts = raw.replace(',', ' ').split()
+        if len(parts) != len(UNIT_ORDER):
+            print(f'需要 {len(UNIT_ORDER)} 个数值，请重新输入。', file=sys.stdout)
+            continue
+        try:
+            values = [int(part) for part in parts]
+        except ValueError:
+            print('请只输入非负整数。', file=sys.stdout)
+            continue
+        if any(value < 0 for value in values):
+            print('所有数值必须为非负整数。', file=sys.stdout)
+            continue
+        print('', file=sys.stdout)
+        return values
 
 
 def _resolve_counts(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict[str, int]:
