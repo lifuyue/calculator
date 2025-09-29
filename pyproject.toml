@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "glycoenum"
+version = "0.1.0"
+description = "Glycan sequence enumeration and mass calculation toolkit"
+requires-python = ">=3.10"
+authors = [
+  { name = "Freshflow Team" }
+]
+dependencies = []
+
+[project.scripts]
+glycoenum = "glycoenum.cli:main"
