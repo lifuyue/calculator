@@ -13,4 +13,8 @@ authors = [
 dependencies = []
 
 [project.scripts]
-glycoenum = "glycoenum.cli:main"
+glycoenum = "glycoenum.gui:main"
+oligosaccharide-prediction = "glycoenum.gui:main"
+
+[project.gui-scripts]
+OligosaccharidePrediction = "glycoenum.gui:main"

@@ -17,13 +17,15 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [info] Building glycoenum executable...
-pyinstaller --noconfirm --onefile glycoenum/cli.py -n glycoenum
+set TARGET_NAME=OligosaccharidePrediction
 
-if exist dist\glycoenum.exe (
-    echo [done] Build complete. Artifact: dist\glycoenum.exe
+echo [info] Building %TARGET_NAME% executable...
+pyinstaller --noconfirm --onefile --windowed glycoenum/gui.py -n %TARGET_NAME%
+
+if exist dist\%TARGET_NAME%.exe (
+    echo [done] Build complete. Artifact: dist\%TARGET_NAME%.exe
 ) else (
-    echo [warn] PyInstaller finished but dist\glycoenum.exe was not found.
+    echo [warn] PyInstaller finished but dist\%TARGET_NAME%.exe was not found.
     exit /b 1
 )
 

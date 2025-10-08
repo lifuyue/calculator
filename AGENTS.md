@@ -1,16 +1,16 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `glycoenum/` contains the CLI package: `cli.py` orchestrates parsing/output, `formula.py` handles composition math, `mass.py` covers mass models and adducts, `permute.py` streams multiset permutations, and `__main__.py` exposes `python -m glycoenum`.
+- `glycoenum/` contains the application package: `gui.py` hosts the Tkinter interface, `cli.py` simply forwards legacy entry points to the GUI, `formula.py` handles composition math, `mass.py` covers mass models and adducts, `permute.py` streams multiset permutations, and `__main__.py` exposes `python -m glycoenum`.
 - Root-level `pyproject.toml` defines the entry point and build metadata; `build.bat` wraps the PyInstaller flow. Place any future docs under `docs/` and Python tests beside the package in `tests/` (e.g., `tests/test_formula.py`).
 - Runtime assets are minimal—no user-writable data lives in the package. Keep optional examples or CSV fixtures in `docs/` to avoid shipping them with the library.
 
 ## Build, Test, and Development Commands
 - `python3 -m venv .venv && source .venv/bin/activate` – standard virtualenv bootstrap.
 - `pip install -e .` – install in editable mode for local iteration.
-- `python3 -m glycoenum.cli --help` – smoke-check CLI binding and option help.
+- `python3 -m glycoenum.gui` – smoke-check GUI launch from the module entry point.
 - `python3 -m compileall glycoenum` – quick syntax verification before commits.
-- Packaging: `pyinstaller --noconfirm --onefile glycoenum/cli.py -n glycoenum` (mirrors the documented release command).
+- Packaging: `pyinstaller --noconfirm --onefile --windowed glycoenum/gui.py -n OligosaccharidePrediction` (mirrors the documented release command).
 
 ## Coding Style & Naming Conventions
 - Target Python 3.10+, prefer type hints on public functions. Constants remain UPPER_SNAKE; module names use snake_case.
@@ -18,7 +18,7 @@
 - CLI flags stay lowercase with hyphen separators (`--mass-model`, `--max-rows`). Function names should be verbs (`format_hill`, `iter_unique_permutations`).
 
 ## Testing Guidelines
-- Adopt `pytest` for unit and CLI integration tests. Mirror module paths: `tests/test_permutes.py`, `tests/test_cli.py`, etc.
+- Adopt `pytest` for unit and GUI integration tests. Mirror module paths: `tests/test_permutes.py`, `tests/test_gui.py`, etc.
 - Cover parsing edge cases (mixed case symbols, invalid tokens), mass override errors, adduct math, and truncation warnings. Include at least one golden CSV snapshot test using temporary files.
 - Aim for ≥90% line coverage in `formula.py` and `mass.py`; document unavoidable gaps in test docstrings.
 
