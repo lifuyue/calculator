@@ -4,6 +4,7 @@ glycoenum/__init__.py
 glycoenum/__main__.py
 glycoenum/cli.py
 glycoenum/formula.py
+glycoenum/gui.py
 glycoenum/mass.py
 glycoenum/permute.py
 glycoenum.egg-info/PKG-INFO

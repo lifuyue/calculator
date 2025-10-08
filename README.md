@@ -35,7 +35,7 @@ The repository includes a PyInstaller spec for bundling a standalone executable:
 pyinstaller --noconfirm --onefile --windowed glycoenum/gui.py -n OligosaccharidePrediction
 ```
 
-On Windows you can run `build.bat`; the script installs dependencies and emits `dist\OligosaccharidePrediction.exe`.
+On Windows you can run `build.bat`; the script installs dependencies and emits `dist\Oligosaccharide prediction.exe`.
 
 ## Development Notes
 

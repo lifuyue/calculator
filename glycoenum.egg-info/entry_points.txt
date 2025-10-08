@@ -1,2 +1,6 @@
 [console_scripts]
-glycoenum = glycoenum.cli:main
+glycoenum = glycoenum.gui:main
+oligosaccharide-prediction = glycoenum.gui:main
+
+[gui_scripts]
+OligosaccharidePrediction = glycoenum.gui:main

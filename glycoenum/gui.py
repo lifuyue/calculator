@@ -40,9 +40,9 @@ EXPORT_HEADER = [
     "Calculated mass",
     "Theoretical m/z",
 ]
-XLSX_FILENAME = "glycoenum_output.xlsx"
+XLSX_FILENAME = "Oligosaccharide_prediction_output.xlsx"
 WORKBOOK_SHEET_NAME = "glycoenum"
-SUMMARY_BASENAME = "glycoenum_summary"
+SUMMARY_BASENAME = "Oligosaccharide_prediction_summary"
 SUMMARY_MANIFEST_NAME = f"{SUMMARY_BASENAME}_manifest.json"
 SUMMARY_MIN_TOTAL_UNITS = 2
 SUMMARY_MAX_TOTAL_UNITS = 10
@@ -96,11 +96,11 @@ class OligosaccharideApp(tk.Tk):
         }
 
         self.summary_vars: Dict[str, tk.StringVar] = {
-            "base_formula": tk.StringVar(value="-"),
-            "final_formula": tk.StringVar(value="-"),
-            "neutral_mass": tk.StringVar(value="-"),
-            "theoretical_mass": tk.StringVar(value="-"),
-            "permutations": tk.StringVar(value="-"),
+            "pre_formula": tk.StringVar(value="-"),
+            "post_formula": tk.StringVar(value="-"),
+            "calculated_mass": tk.StringVar(value="-"),
+            "theoretical_mz": tk.StringVar(value="-"),
+            "total_results": tk.StringVar(value="-"),
             "status": tk.StringVar(value="Waiting for input"),
         }
 
@@ -135,8 +135,11 @@ class OligosaccharideApp(tk.Tk):
         description = ttk.Label(
             container,
             text=(
-                "Enumerate oligosaccharide unit permutations, compute dehydrated and "
-                "modified formulas, and predict theoretical masses."
+                "Enter the number of units for each monosaccharide, then choose "
+                "\"Calculate sequences\" to enumerate every unique arrangement, apply "
+                "dehydration and terminal derivatization, and report the resulting masses. "
+                "Use \"Export XLSX...\" to save the current table or \"Generate summary...\" "
+                "to build the full 2-10 unit reference workbooks."
             ),
             wraplength=720,
         )
@@ -226,56 +229,24 @@ class OligosaccharideApp(tk.Tk):
 
         summary = ttk.Frame(frame)
         summary.grid(row=0, column=0, sticky="ew", pady=(0, 12))
-        for column in range(3):
-            summary.columnconfigure(column, weight=1)
+        summary.columnconfigure(1, weight=1)
 
-        ttk.Label(summary, text="Base formula", style="Header.TLabel").grid(
-            row=0, column=0, sticky="w"
-        )
-        ttk.Label(
-            summary,
-            textvariable=self.summary_vars["base_formula"],
-        ).grid(row=1, column=0, sticky="w")
+        summary_fields = [
+            ("Pre-derivatization molecular formula", "pre_formula"),
+            ("Post-derivatization molecular formula", "post_formula"),
+            ("Calculated mass", "calculated_mass"),
+            ("Theoretical m/z", "theoretical_mz"),
+            ("Total results", "total_results"),
+        ]
 
-        ttk.Label(summary, text="Final formula", style="Header.TLabel").grid(
-            row=0, column=1, sticky="w"
-        )
-        ttk.Label(
-            summary,
-            textvariable=self.summary_vars["final_formula"],
-        ).grid(row=1, column=1, sticky="w")
-
-        ttk.Label(summary, text="Theoretical mass", style="Header.TLabel").grid(
-            row=0, column=2, sticky="w"
-        )
-        ttk.Label(
-            summary,
-            textvariable=self.summary_vars["theoretical_mass"],
-        ).grid(row=1, column=2, sticky="w")
-
-        ttk.Label(summary, text="Neutral mass", style="Header.TLabel").grid(
-            row=2, column=0, sticky="w", pady=(12, 0)
-        )
-        ttk.Label(
-            summary,
-            textvariable=self.summary_vars["neutral_mass"],
-        ).grid(row=3, column=0, sticky="w")
-
-        ttk.Label(summary, text="Total permutations", style="Header.TLabel").grid(
-            row=2, column=1, sticky="w", pady=(12, 0)
-        )
-        ttk.Label(
-            summary,
-            textvariable=self.summary_vars["permutations"],
-        ).grid(row=3, column=1, sticky="w")
-
-        ttk.Label(summary, text="Sequences shown", style="Header.TLabel").grid(
-            row=2, column=2, sticky="w", pady=(12, 0)
-        )
-        ttk.Label(
-            summary,
-            textvariable=self.summary_vars["status"],
-        ).grid(row=3, column=2, sticky="w")
+        for row, (label, key) in enumerate(summary_fields):
+            ttk.Label(summary, text=label, style="Header.TLabel").grid(
+                row=row, column=0, sticky="w", pady=(0 if row == 0 else 6, 0)
+            )
+            ttk.Label(
+                summary,
+                textvariable=self.summary_vars[key],
+            ).grid(row=row, column=1, sticky="w", padx=(12, 0), pady=(0 if row == 0 else 6, 0))
 
         table_frame = ttk.Frame(frame)
         table_frame.grid(row=1, column=0, sticky="nsew")
@@ -392,11 +363,11 @@ class OligosaccharideApp(tk.Tk):
         for index, sequence in enumerate(result.sequences, start=1):
             self.tree.insert("", "end", values=(index, sequence))
 
-        self.summary_vars["base_formula"].set(result.base_formula)
-        self.summary_vars["final_formula"].set(result.final_formula)
-        self.summary_vars["theoretical_mass"].set(result.formatted_mass)
-        self.summary_vars["neutral_mass"].set(f"{result.neutral_mass:.{result.decimals}f}")
-        self.summary_vars["permutations"].set(str(result.total_permutations))
+        self.summary_vars["pre_formula"].set(result.base_formula)
+        self.summary_vars["post_formula"].set(result.final_formula)
+        self.summary_vars["calculated_mass"].set(result.formatted_mass)
+        self.summary_vars["theoretical_mz"].set(result.formatted_mz)
+        self.summary_vars["total_results"].set(str(result.total_permutations))
 
         if result.total_permutations == 0:
             status_text = "No sequences available"
