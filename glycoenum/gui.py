@@ -13,6 +13,9 @@ from tkinter import filedialog, messagebox, ttk
 
 from xml.sax.saxutils import escape
 
+import license_manager
+import sys
+
 from glycoenum.formula import add_modifier, dehydrate, format_hill, parse_formula, scale_counts
 from glycoenum.mass import apply_adduct, build_mass_table, calculate_mass
 from glycoenum.permute import iter_unique_permutations, permutation_count
@@ -747,6 +750,17 @@ def _column_letter(index: int) -> str:
 
 
 def main() -> None:
+    ok, message = license_manager.activate_if_needed()
+    if not ok:
+        try:
+            temp_root = tk.Tk()
+            temp_root.withdraw()
+            messagebox.showerror(WINDOW_TITLE, f"License error: {message}")
+            temp_root.destroy()
+        except Exception:
+            print(f"License error: {message}")
+        sys.exit(1)
+
     app = OligosaccharideApp()
     app.mainloop()
 

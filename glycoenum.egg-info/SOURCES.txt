@@ -1,4 +1,5 @@
 README.md
+license_manager.py
 pyproject.toml
 glycoenum/__init__.py
 glycoenum/__main__.py
